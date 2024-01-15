@@ -399,8 +399,10 @@ int i2s_alc_volume_get(audio_element_handle_t i2s_stream, int *volume)
     }
 }
 
+extern esp_err_t board_xl9535_amp_enable(bool on);;
 audio_element_handle_t i2s_stream_init(i2s_stream_cfg_t *config)
 {
+    board_xl9535_amp_enable(false);
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
     audio_element_handle_t el;
     cfg.open = _i2s_open;
@@ -418,10 +420,14 @@ audio_element_handle_t i2s_stream_init(i2s_stream_cfg_t *config)
 
     if (cfg.buffer_len % I2S_BUFFER_ALINED_BYTES_SIZE) {
         ESP_LOGE(TAG, "The size of buffer must be a multiple of %d, current size is %d", I2S_BUFFER_ALINED_BYTES_SIZE, cfg.buffer_len);
+        board_xl9535_amp_enable(true);
         return NULL;
     }
 
     i2s_stream_t *i2s = audio_calloc(1, sizeof(i2s_stream_t));
+    if (!i2s) {
+        board_xl9535_amp_enable(true);
+    }
     AUDIO_MEM_CHECK(TAG, i2s, return NULL);
     memcpy(&i2s->config, config, sizeof(i2s_stream_cfg_t));
 
@@ -439,13 +445,16 @@ audio_element_handle_t i2s_stream_init(i2s_stream_cfg_t *config)
     esp_err_t ret = i2s_driver_install(i2s->config.i2s_port, &i2s->config.i2s_config, 0, NULL);
     if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE) {
         audio_free(i2s);
+        board_xl9535_amp_enable(true);
         return NULL;
     }
+    i2s_zero_dma_buffer(i2s->config.i2s_port);
     i2s_stream_check_data_bits(i2s, i2s->config.i2s_config.bits_per_sample);
 
     el = audio_element_init(&cfg);
     AUDIO_MEM_CHECK(TAG, el, {
         audio_free(i2s);
+        board_xl9535_amp_enable(true);
         return NULL;
     });
     audio_element_setdata(el, i2s);
@@ -474,6 +483,7 @@ audio_element_handle_t i2s_stream_init(i2s_stream_cfg_t *config)
         i2s_set_pin(i2s->config.i2s_port, &i2s_pin_cfg);
     }
 
+    board_xl9535_amp_enable(true);
     return el;
 }
 
